@@ -11,6 +11,7 @@ The model separates **ground truth** (`actual`: which copies physically exist) f
 - plans to create or destroy a copy, confirmed by the oversight body before execution;
 - plans closed before confirmation (rejected by the oversight body, withdrawn by the proposer or expired), modelled as one action because all three close the plan without changing the inventory;
 - results *succeeded*, *failed* and *unknown*; an unknown result means a crash in which the physical change may or may not have happened;
+- the confirmation deadline, with time abstracted: after confirmation the deadline may pass at any moment before the key store starts. After that, the key store can only record *failed* (not performed);
 - reconciliation by the oversight body, which records the true inventory;
 - terminal destruction of every copy in the inventory.
 
@@ -27,6 +28,7 @@ The model separates **ground truth** (`actual`: which copies physically exist) f
 | `FinalizedMeansNoCopies` | After terminal destruction, no copy of the key exists anywhere |
 | `NoDuplicateEvents` | Each kind of event appears at most once per plan; a plan has at most one outcome (a result or closure before confirmation) |
 | `ClosedUnconfirmedMeansNeverConfirmed` | A plan closed before confirmation was never confirmed and has no key-store result |
+| `StartedOnlyBeforeDeadline` | A *succeeded* or *unknown* result, the only steps that can change a copy, is never recorded after the plan's confirmation deadline has passed |
 | `ResultHasPriorAuthorization` | Every result (*succeeded*, *failed*, *unknown*) comes after that plan's entry and then its confirmation |
 | `ReconcileFollowsUnknown` | A reconciliation happens only after an *unknown* result for the same plan |
 | `ClosedPlanHasOutcome` | A closed plan has a terminal outcome on record: *succeeded*, *failed*, closure before confirmation, or *unknown* followed by reconciliation, so recovery can tell a failed plan from a lost result |
@@ -48,11 +50,11 @@ java -cp tla2tools.jar tlc2.TLC -deadlock -workers auto -config KeyInventory.cfg
 
 ```
 Model checking completed. No error has been found.
-340816 states generated, 149978 distinct states found, 0 states left on queue.
+500698 states generated, 213775 distinct states found, 0 states left on queue.
 The depth of the complete state graph search is 23.
 ```
 
-The event properties were also checked for vacuity: in a copy of the model where a *failed* result is not recorded, TLC reports `Invariant ClosedPlanHasOutcome is violated`.
+The event properties were also checked for vacuity: in a copy of the model where a *failed* result is not recorded, TLC reports `Invariant ClosedPlanHasOutcome is violated`; in a copy where the key store may succeed after the deadline, it reports `Invariant StartedOnlyBeforeDeadline is violated`.
 
 ### Negative control
 
