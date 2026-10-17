@@ -30,7 +30,7 @@ The model separates **ground truth** (`actual`: which copies physically exist) f
 | `NoDuplicateEvents` | Each kind of event appears at most once per plan; a plan has at most one outcome (a result or closure before confirmation) |
 | `ClosedUnconfirmedMeansNeverConfirmed` | A plan closed before confirmation was never confirmed and has no key-store result |
 | `StartedOnlyBeforeDeadline` | The key store never starts an operation after the plan's confirmation deadline has passed. An operation started earlier may still finish later |
-| `NotPerformedOnlyAfterDeadline` | *Not performed* is recorded only when the deadline passed and the operation was never started |
+| `NotPerformedOnlyAfterDeadline` | *Not performed* is a separate entry, not a result. It is recorded only for a plan that was entered and confirmed, whose deadline then passed, and whose operation was never started, in that order |
 | `ResultHasPriorAuthorization` | Every result (*succeeded*, *failed*, *unknown*) comes after that plan's entry, its confirmation and the start of the operation, in that order |
 | `ReconcileFollowsUnknown` | A reconciliation happens only after an *unknown* result for the same plan |
 | `ClosedPlanHasOutcome` | A closed plan has a terminal outcome on record: *succeeded*, *failed*, closure before confirmation, or *unknown* followed by reconciliation, so recovery can tell a failed plan from a lost result |
