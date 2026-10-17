@@ -113,9 +113,9 @@ Permission to delete isn't proof of deletion, especially with backups. Each reco
 - **At the end:** the materials are destroyed by a **terminal procedure** that creates no new materials to retain, so the cycle stops here instead of repeating for every level of evidence (see below).
 
 **The terminal procedure.** Audit materials are not stored item by item under their own keys, which would need their own inventories and audits. Instead, all materials of one cohort sit in a single container encrypted under a **cohort key**. When the cohort's retention ends:
-1. the cohort key is destroyed in the hardware key store, in the presence of the oversight body (it witnesses the destruction directly instead of checking an inventory afterwards);
-2. the oversight body appends one signed statement to the log, bound to the cohort identifier, a commitment to the cohort key's copy inventory and the destruction result;
-3. nothing else is kept. The destroyed key has no further inventory, receipt or audit, and the encrypted container can't be decrypted.
+1. **every copy** of the cohort key is destroyed in the presence of the oversight body: the primary and each replica and backup, one by one. The cohort key needs copies so that audit materials aren't lost if one device fails, so the procedure can't assume a single copy. The oversight body itself holds the cohort key's full copy inventory from the moment the key is created, and it witnesses each item on it being destroyed, instead of checking an inventory afterwards;
+2. the oversight body appends one signed statement to the log, bound to the cohort identifier, the commitment to the cohort key's copy inventory (made when the key was created) and the result for every item in it. If any copy can't be witnessed, the statement says so, and that is a fault to be investigated;
+3. the oversight body then destroys its own copy of the inventory, and nothing else is kept. The destroyed key has no further inventory, receipt or audit, and the encrypted container can't be decrypted.
 
 **What stays in the log permanently, and what goes:**
 
@@ -124,7 +124,7 @@ Permission to delete isn't proof of deletion, especially with backups. Each reco
 | Record commitments and deletion entries | Records, record salts and record keys (§4.1–4.3) |
 | Inventory and receipt commitments for record keys | Full inventories, receipts and their salts (when the cohort key is destroyed) |
 | Oversight confirmations of coverage (§4.3) | The cohort container's contents |
-| Signed cohort audit reports (§4.4) | — |
+| Signed public cohort audit reports (§4.4) | Full audit reports with system identifiers and topology |
 | The oversight body's witnessed destruction statement for each cohort key | — |
 
 Everything that stays is a commitment, signature or report. None of it reveals personal data or the layout of the key infrastructure, so it doesn't need deleting, and it remains the permanent evidence that each check took place.
@@ -133,6 +133,8 @@ Everything that stays is a commitment, signature or report. None of it reveals p
 
 Every deletion gets the same automatic minimum: the register's signed deletion entry, a destruction receipt covering every enrolled copy of the key, and a check of its date against the committed deadline.
 
-Audits are **periodic and sample-based**, not run on every deletion. Deletions are grouped into **audit cohorts**: all deletions made within one audit period. For each cohort, independent auditors examine a random sample of its deletions and of the storage and backup systems, and append a signed report to the log. The report names the cohort, lists the deletions and systems it covered, and gives the method and the findings, so anyone can see which deletions were audited and which were not. A cohort's audit counts as completed when its report is in the log, even though most of its deletions weren't sampled.
+Audits are **periodic and sample-based**, not run on every deletion. Deletions are grouped into **audit cohorts**: all deletions made within one audit period. For each cohort, independent auditors examine a random sample of its deletions and of the storage and backup systems. Each audit produces two versions of its report:
+- **The public report**, appended to the log and kept permanently. It names the cohort, lists the deletion entries it covered (by their public log identifiers), and gives the categories of systems checked (for example, "primary storage" or "backup tier"), the share of each category that was covered, the method and the findings. It contains no system identifiers, locations or topology, so anyone can see which deletions were audited and which were not, without learning how the infrastructure is laid out.
+- **The full report**, with the specific systems and how they connect. It goes only to the oversight body, is stored in the cohort's encrypted container with the other audit materials, and is destroyed with them by the terminal procedure (§4.3). A cohort's audit counts as completed when its report is in the log, even though most of its deletions weren't sampled.
 
 The extra **prior** independent countersignature (§4.2) applies only to deletions outside the original deadline. A routine deletion doesn't need one, because anyone can check its date against the deadline committed when the record was created.
