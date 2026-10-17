@@ -107,6 +107,11 @@ Permission to delete isn't proof of deletion, especially with backups. Each reco
 
 **Who holds the salts.** The salts behind the inventory and receipt commitments are never published, just like record salts (§3.1). The register keeps them alongside the full inventories and receipts and hands them to the oversight body and auditors together with those documents. Those bodies recompute the commitments and check them against the public log. A register that can't produce matching salts and documents for a commitment is evidence of a fault, the same rule as in §3.2.
 
+**How long these are kept, and who can access them.** Inventories, receipts and their salts describe key infrastructure, not people, so keeping them after the record itself is deleted doesn't undo that deletion. They are audit evidence, kept only as long as they can still be needed:
+- **Retention:** until the deletion has been covered by a completed periodic audit (§4.4) *and* the period in which the deletion can be challenged has ended. The exact period is set by law per register (a placeholder to fix in a pilot), and it is committed to the log when the key is created, the same way as the record's own deadline (§4.2).
+- **Access during retention:** only the oversight body, auditors and courts, for a stated purpose. Every access is itself logged: who, when and why. The material is never released to the public.
+- **At the end:** the inventories, receipts and salts are destroyed with the same procedure as records, including a deletion entry, a destruction receipt and audit coverage. The public commitments and the oversight body's signed confirmation stay in the log permanently, as evidence that the check took place.
+
 ### 4.4 What every deletion gets, and how audits run
 
 Every deletion gets the same automatic minimum: the register's signed deletion entry, a destruction receipt covering every enrolled copy of the key, and a check of its date against the committed deadline.
