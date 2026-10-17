@@ -103,7 +103,9 @@ Permission to delete isn't proof of deletion, especially with backups. Each reco
 - a salted commitment to each destruction receipt;
 - the oversight body's signed confirmation that the receipt covers the committed inventory.
 
-The full inventories and receipts are held by the register and handed to the oversight body and auditors, who check them against the public commitments.
+**What the confirmation is bound to.** The oversight body signs a statement that names, together, the log identifier of the deletion entry, the inventory commitment and the receipt commitment, plus the result of the check. Because the signature covers all three, the confirmation can't be reused for a different deletion, and an auditor can see exactly which public entries it vouches for.
+
+**Who holds the salts.** The salts behind the inventory and receipt commitments are never published, just like record salts (§3.1). The register keeps them alongside the full inventories and receipts and hands them to the oversight body and auditors together with those documents. Those bodies recompute the commitments and check them against the public log. A register that can't produce matching salts and documents for a commitment is evidence of a fault, the same rule as in §3.2.
 
 ### 4.4 What every deletion gets, and how audits run
 
