@@ -114,8 +114,15 @@ Permission to delete isn't proof of deletion, especially with backups. Each reco
 
 **The terminal procedure.** Audit materials are not stored item by item under their own keys, which would need their own inventories and audits. Instead, all materials of one cohort sit in a single container encrypted under a **cohort key**. When the cohort's retention ends:
 1. **every copy** of the cohort key is destroyed in the presence of the oversight body: the primary and each replica and backup, one by one. The cohort key needs copies so that audit materials aren't lost if one device fails, so the procedure can't assume a single copy. The oversight body itself holds the cohort key's full copy inventory from the moment the key is created, and it witnesses each item on it being destroyed, instead of checking an inventory afterwards;
-2. the oversight body appends one signed statement to the log, bound to the cohort identifier, the commitment to the cohort key's copy inventory (made when the key was created) and the result for every item in it. If any copy can't be witnessed, the statement says so, and that is a fault to be investigated;
+2. the oversight body appends one signed statement to the log, bound to the cohort identifier, the latest commitment to the cohort key's copy inventory (see "Changes to an inventory" below) and the result for **every copy ever created**, including copies already retired: either "destroyed at retirement" with a reference to that earlier event, or "destroyed now". If any copy can't be witnessed, the statement says so, and that is a fault to be investigated;
 3. the oversight body then destroys its own copy of the inventory, and nothing else is kept. The destroyed key has no further inventory, receipt or audit, and the encrypted container can't be decrypted.
+
+**Changes to an inventory.** Over the retention period, copies of a key may be added, replaced, moved to a backup or retired. An inventory fixed only at creation would then stop matching the copies that actually exist. So:
+- every change to a key's copies is an **inventory event**. The oversight body is notified before it happens, and a commitment to the updated inventory is appended to the log, linked to the previous one. The inventory commitments form a chain from creation to destruction;
+- a copy that is retired early is destroyed under the oversight body's observation at that time, and the event records it;
+- the final statement covers the whole history: every copy that ever appeared in the chain, whether destroyed at retirement or at the end.
+
+The same rule applies to the copy inventories of record keys: any change to a record key's copies appends a new linked inventory commitment, and the destruction receipt must cover every copy in that chain.
 
 **What stays in the log permanently, and what goes:**
 
@@ -131,7 +138,7 @@ Everything that stays is a commitment, signature or report. None of it reveals p
 
 ### 4.4 What every deletion gets, and how audits run
 
-Every deletion gets the same automatic minimum: the register's signed deletion entry, a destruction receipt covering every enrolled copy of the key, and a check of its date against the committed deadline.
+Every deletion **of a record** gets the same automatic minimum: the register's signed deletion entry, a destruction receipt covering every copy of the record's key in its inventory chain, and a check of its date against the committed deadline. Cohort keys and audit materials don't follow this rule. They end with the terminal procedure in §4.3, which deliberately has no receipt or audit of its own.
 
 Audits are **periodic and sample-based**, not run on every deletion. Deletions are grouped into **audit cohorts**: all deletions made within one audit period. For each cohort, independent auditors examine a random sample of its deletions and of the storage and backup systems. Each audit produces two versions of its report:
 - **The public report**, appended to the log and kept permanently. It names the cohort, lists the deletion entries it covered (by their public log identifiers), and gives the categories of systems checked (for example, "primary storage" or "backup tier"), the share of each category that was covered, the method and the findings. It contains no system identifiers, locations or topology, so anyone can see which deletions were audited and which were not, without learning how the infrastructure is laid out.
