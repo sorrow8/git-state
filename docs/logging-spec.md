@@ -94,9 +94,16 @@ Permission to delete isn't proof of deletion, especially with backups. Each reco
 
 | What | Checked for | How |
 | --- | --- | --- |
-| Every enrolled copy of the record's key was destroyed | **Every record** | Keys live only in hardware key stores and can't be exported. When a key is created, the identifiers of all its copies (the primary, replicas and key backups) are committed to the log as its copy inventory. At deletion, each device holding a copy signs the destruction of that copy, and the receipt lists every copy ID from the inventory. An automatic check confirms the receipt covers the whole inventory |
+| Every enrolled copy of the record's key was destroyed | **Every record** | Keys live only in hardware key stores and can't be exported. When a key is created, the register records the identifiers of all its copies (the primary, replicas and key backups) as the key's copy inventory. At deletion, each device holding a copy signs the destruction of that copy, and the receipt lists every copy ID from the inventory. The independent oversight body checks automatically that the receipt covers the whole inventory, and appends a signed confirmation to the log. What is public and what isn't is set out below the table |
 | No copy of the key exists outside its inventory | The key-management system as a whole | A signature proves where a receipt came from, not that the hardware listed every copy. So auditors independently check the key stores' configuration and replication logs for any path that could create an unenrolled copy, and reconcile the devices' own logs against the inventories |
 | No plaintext copy of the record or salt exists outside the encrypted store | **A sample** of storage and backup systems | Independent auditors search sampled systems for plaintext copies. A sample gives reasonable assurance, not proof for every copy, and the report says so |
+
+**Copy identifiers are not public.** Copy IDs, device identities and the full receipts would reveal how the key stores and replication are laid out, so they never go into the public log. Only these do:
+- a salted commitment to each key's copy inventory, made when the key is created, so the inventory can't be changed afterwards without detection;
+- a salted commitment to each destruction receipt;
+- the oversight body's signed confirmation that the receipt covers the committed inventory.
+
+The full inventories and receipts are held by the register and handed to the oversight body and auditors, who check them against the public commitments.
 
 ### 4.4 What every deletion gets, and how audits run
 
