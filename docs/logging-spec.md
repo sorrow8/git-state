@@ -110,7 +110,24 @@ Permission to delete isn't proof of deletion, especially with backups. Each reco
 **How long these are kept, and who can access them.** Inventories, receipts and their salts describe key infrastructure, not people, so keeping them after the record itself is deleted doesn't undo that deletion. They are audit evidence, kept only as long as they can still be needed:
 - **Retention:** tied to the deletion's audit cohort (§4.4), because most deletions are never sampled and "audited" alone would never happen for them. The materials of every deletion in a cohort are kept until that cohort's audit is completed *and* the period in which a deletion can be challenged has ended. For deletions that were sampled, materials are also kept until any findings about them are closed. The exact period is set by law per register (a placeholder to fix in a pilot), and it is committed to the log when the key is created, the same way as the record's own deadline (§4.2).
 - **Access during retention:** only the oversight body, auditors and courts, for a stated purpose. Every access is itself logged: who, when and why. The material is never released to the public.
-- **At the end:** the inventories, receipts and salts are destroyed with the same procedure as records, including a deletion entry, a destruction receipt and audit coverage. The public commitments and the oversight body's signed confirmation stay in the log permanently, as evidence that the check took place.
+- **At the end:** the materials are destroyed by a **terminal procedure** that creates no new materials to retain, so the cycle stops here instead of repeating for every level of evidence (see below).
+
+**The terminal procedure.** Audit materials are not stored item by item under their own keys, which would need their own inventories and audits. Instead, all materials of one cohort sit in a single container encrypted under a **cohort key**. When the cohort's retention ends:
+1. the cohort key is destroyed in the hardware key store, in the presence of the oversight body (it witnesses the destruction directly instead of checking an inventory afterwards);
+2. the oversight body appends one signed statement to the log, bound to the cohort identifier, a commitment to the cohort key's copy inventory and the destruction result;
+3. nothing else is kept. The destroyed key has no further inventory, receipt or audit, and the encrypted container can't be decrypted.
+
+**What stays in the log permanently, and what goes:**
+
+| Stays permanently (public, no personal data) | Removed, with no further audit cycle |
+| --- | --- |
+| Record commitments and deletion entries | Records, record salts and record keys (§4.1–4.3) |
+| Inventory and receipt commitments for record keys | Full inventories, receipts and their salts (when the cohort key is destroyed) |
+| Oversight confirmations of coverage (§4.3) | The cohort container's contents |
+| Signed cohort audit reports (§4.4) | — |
+| The oversight body's witnessed destruction statement for each cohort key | — |
+
+Everything that stays is a commitment, signature or report. None of it reveals personal data or the layout of the key infrastructure, so it doesn't need deleting, and it remains the permanent evidence that each check took place.
 
 ### 4.4 What every deletion gets, and how audits run
 
