@@ -39,8 +39,11 @@ vars == <<actual, inv, log, events, view, plans, doubt, nPlans, finalized>>
 
 Ops == {"create", "destroy"}
 PlanStates == {"pending", "confirmed", "unknown"}
-EventKinds == {"plan", "confirm", "succeeded", "failed", "unknown", "reconcile"}
+EventKinds == {"plan", "confirm", "closed-unconfirmed",
+               "succeeded", "failed", "unknown", "reconcile"}
 ResultKinds == {"succeeded", "failed", "unknown"}
+\* Ways a plan can end: a key-store result, or closure before confirmation.
+OutcomeKinds == ResultKinds \cup {"closed-unconfirmed"}
 
 Event(k, id) == [kind |-> k, id |-> id]
 
@@ -104,6 +107,16 @@ Confirm(pl) ==
     /\ EnforceSingleOpenPlan => plans = {pl}
     /\ plans' = (plans \ {pl}) \cup {[pl EXCEPT !.state = "confirmed"]}
     /\ events' = Append(events, Event("confirm", pl.id))
+    /\ UNCHANGED <<actual, inv, log, view, doubt, nPlans, finalized>>
+
+(* A plan that is never confirmed is closed without changing anything:   *)
+(* the oversight body rejects it, the proposer withdraws it, or it        *)
+(* expires. All three have the same effect, so the model has one action. *)
+CloseUnconfirmed(pl) ==
+    /\ pl \in plans
+    /\ pl.state = "pending"
+    /\ plans' = plans \ {pl}
+    /\ events' = Append(events, Event("closed-unconfirmed", pl.id))
     /\ UNCHANGED <<actual, inv, log, view, doubt, nPlans, finalized>>
 
 (* Steps 4-5: the key store acts only on a confirmed plan, then records   *)
@@ -170,7 +183,8 @@ Next ==
     \/ \E p \in Proposers : Read(p)
     \/ \E p \in Proposers, op \in Ops, c \in Copies : Submit(p, op, c)
     \/ \E pl \in plans :
-          Confirm(pl) \/ ExecuteSucceeded(pl) \/ ExecuteFailed(pl)
+          Confirm(pl) \/ CloseUnconfirmed(pl)
+          \/ ExecuteSucceeded(pl) \/ ExecuteFailed(pl)
           \/ ExecuteUnknown(pl) \/ Reconcile(pl)
     \/ Finalize
 
@@ -209,11 +223,21 @@ At(k, id) == {i \in 1..Len(events) : events[i].kind = k /\ events[i].id = id}
 \* Positions of any result event for plan id.
 ResultsOf(id) == UNION {At(k, id) : k \in ResultKinds}
 
-\* Each kind of event appears at most once per plan; in particular a plan has at most one result.
+\* Positions of any outcome (a result or closure before confirmation) for plan id.
+OutcomesOf(id) == UNION {At(k, id) : k \in OutcomeKinds}
+
+\* Each kind of event appears at most once per plan; in particular a plan has at most one outcome.
 NoDuplicateEvents ==
     \A id \in 0..(nPlans - 1) :
-        /\ \A k \in EventKinds \ ResultKinds : Cardinality(At(k, id)) <= 1
-        /\ Cardinality(ResultsOf(id)) <= 1
+        /\ \A k \in EventKinds \ OutcomeKinds : Cardinality(At(k, id)) <= 1
+        /\ Cardinality(OutcomesOf(id)) <= 1
+
+\* A plan closed before confirmation was never confirmed and has no key-store result.
+ClosedUnconfirmedMeansNeverConfirmed ==
+    \A id \in 0..(nPlans - 1) :
+        At("closed-unconfirmed", id) # {} =>
+            /\ At("confirm", id) = {}
+            /\ ResultsOf(id) = {}
 
 \* Every result was preceded by the plan entry and then the oversight confirmation.
 ResultHasPriorAuthorization ==
@@ -232,6 +256,7 @@ ClosedPlanHasOutcome ==
         (\A pl \in plans : pl.id # id) =>
             \/ At("succeeded", id) # {}
             \/ At("failed", id) # {}
+            \/ At("closed-unconfirmed", id) # {}
             \/ At("unknown", id) # {} /\ At("reconcile", id) # {}
 
 \* An open plan has no terminal outcome yet, so recovery can tell open from closed.
@@ -239,6 +264,7 @@ OpenPlanHasNoOutcome ==
     \A pl \in plans :
         /\ At("succeeded", pl.id) = {}
         /\ At("failed", pl.id) = {}
+        /\ At("closed-unconfirmed", pl.id) = {}
         /\ At("reconcile", pl.id) = {}
         /\ (pl.state = "unknown") <=> (At("unknown", pl.id) # {})
 

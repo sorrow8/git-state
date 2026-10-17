@@ -9,6 +9,7 @@ The model separates **ground truth** (`actual`: which copies physically exist) f
 - one key, a bounded set of copies (`c1`, `c2`, `c3`), starting with `c1`;
 - two proposers that read the inventory and may race to submit plans, possibly from a stale view;
 - plans to create or destroy a copy, confirmed by the oversight body before execution;
+- plans closed before confirmation (rejected by the oversight body, withdrawn by the proposer or expired), modelled as one action because all three close the plan without changing the inventory;
 - results *succeeded*, *failed* and *unknown*; an unknown result means a crash in which the physical change may or may not have happened;
 - reconciliation by the oversight body, which records the true inventory;
 - terminal destruction of every copy in the inventory.
@@ -24,10 +25,11 @@ The model separates **ground truth** (`actual`: which copies physically exist) f
 | `DoubtBlocksOperations` | While anything is in doubt, the only open plan is the one being reconciled |
 | `DoubtfulDestroyStillCounted` | A copy whose destruction is in doubt still counts as existing |
 | `FinalizedMeansNoCopies` | After terminal destruction, no copy of the key exists anywhere |
-| `NoDuplicateEvents` | Each kind of event appears at most once per plan; a plan has at most one result |
+| `NoDuplicateEvents` | Each kind of event appears at most once per plan; a plan has at most one outcome (a result or closure before confirmation) |
+| `ClosedUnconfirmedMeansNeverConfirmed` | A plan closed before confirmation was never confirmed and has no key-store result |
 | `ResultHasPriorAuthorization` | Every result (*succeeded*, *failed*, *unknown*) comes after that plan's entry and then its confirmation |
 | `ReconcileFollowsUnknown` | A reconciliation happens only after an *unknown* result for the same plan |
-| `ClosedPlanHasOutcome` | A closed plan has a terminal outcome on record: *succeeded*, *failed*, or *unknown* followed by reconciliation, so recovery can tell a failed plan from a lost result |
+| `ClosedPlanHasOutcome` | A closed plan has a terminal outcome on record: *succeeded*, *failed*, closure before confirmation, or *unknown* followed by reconciliation, so recovery can tell a failed plan from a lost result |
 | `OpenPlanHasNoOutcome` | An open plan has no terminal outcome yet, and its *unknown* state matches the history |
 | `InventoryChangesOnlyWhenLogged` (action property) | The inventory changes only through a logged success, reconciliation or terminal step |
 | `PhysicalChangeOnlyWithRecordedResult` (action property) | A copy is created or destroyed only in a step that records a result, or in the terminal step. With `ResultHasPriorAuthorization`, no physical change happens without a logged, confirmed plan |
@@ -46,7 +48,7 @@ java -cp tla2tools.jar tlc2.TLC -deadlock -workers auto -config KeyInventory.cfg
 
 ```
 Model checking completed. No error has been found.
-244165 states generated, 108866 distinct states found, 0 states left on queue.
+340816 states generated, 149978 distinct states found, 0 states left on queue.
 The depth of the complete state graph search is 23.
 ```
 
