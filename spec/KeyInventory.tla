@@ -39,7 +39,7 @@ vars == <<actual, inv, log, events, view, plans, doubt, nPlans, finalized>>
 
 Ops == {"create", "destroy"}
 PlanStates == {"pending", "confirmed", "unknown"}
-EventKinds == {"plan", "confirm", "closed-unconfirmed",
+EventKinds == {"plan", "confirm", "closed-unconfirmed", "deadline-passed",
                "succeeded", "failed", "unknown", "reconcile"}
 ResultKinds == {"succeeded", "failed", "unknown"}
 \* Ways a plan can end: a key-store result, or closure before confirmation.
@@ -48,7 +48,7 @@ OutcomeKinds == ResultKinds \cup {"closed-unconfirmed"}
 Event(k, id) == [kind |-> k, id |-> id]
 
 Plan == [id : Nat, base : SUBSET Copies, target : SUBSET Copies,
-         op : Ops, copy : Copies, state : PlanStates]
+         op : Ops, copy : Copies, state : PlanStates, expired : BOOLEAN]
 
 Apply(s, op, c) == IF op = "create" THEN s \cup {c} ELSE s \ {c}
 
@@ -93,7 +93,7 @@ Submit(p, op, c) ==
     /\ EnforceSingleOpenPlan => plans = {}
     /\ plans' = plans \cup
          {[id |-> nPlans, base |-> view[p], target |-> Apply(view[p], op, c),
-           op |-> op, copy |-> c, state |-> "pending"]}
+           op |-> op, copy |-> c, state |-> "pending", expired |-> FALSE]}
     /\ events' = Append(events, Event("plan", nPlans))
     /\ nPlans' = nPlans + 1
     /\ UNCHANGED <<actual, inv, log, view, doubt, finalized>>
@@ -119,11 +119,32 @@ CloseUnconfirmed(pl) ==
     /\ events' = Append(events, Event("closed-unconfirmed", pl.id))
     /\ UNCHANGED <<actual, inv, log, view, doubt, nPlans, finalized>>
 
+(* The confirmation deadline passes. Time is abstracted: this can happen  *)
+(* at any point after confirmation, before the key store has started.     *)
+DeadlinePasses(pl) ==
+    /\ pl \in plans
+    /\ pl.state = "confirmed"
+    /\ ~pl.expired
+    /\ plans' = (plans \ {pl}) \cup {[pl EXCEPT !.expired = TRUE]}
+    /\ events' = Append(events, Event("deadline-passed", pl.id))
+    /\ UNCHANGED <<actual, inv, log, view, doubt, nPlans, finalized>>
+
+(* After the deadline the key store does not start the operation and      *)
+(* records failed (not performed). Nothing physical changes.              *)
+ExpiredNotPerformed(pl) ==
+    /\ pl \in plans
+    /\ pl.state = "confirmed"
+    /\ pl.expired
+    /\ plans' = plans \ {pl}
+    /\ events' = Append(events, Event("failed", pl.id))
+    /\ UNCHANGED <<actual, inv, log, view, doubt, nPlans, finalized>>
+
 (* Steps 4-5: the key store acts only on a confirmed plan, then records   *)
 (* a signed result. The inventory changes only on success.                *)
 ExecuteSucceeded(pl) ==
     /\ pl \in plans
     /\ pl.state = "confirmed"
+    /\ ~pl.expired
     /\ ~Frozen
     /\ actual' = Apply(actual, pl.op, pl.copy)
     /\ inv' = pl.target
@@ -135,6 +156,7 @@ ExecuteSucceeded(pl) ==
 ExecuteFailed(pl) ==
     /\ pl \in plans
     /\ pl.state = "confirmed"
+    /\ ~pl.expired
     /\ ~Frozen
     /\ plans' = plans \ {pl}
     /\ events' = Append(events, Event("failed", pl.id))
@@ -145,6 +167,7 @@ ExecuteFailed(pl) ==
 ExecuteUnknown(pl) ==
     /\ pl \in plans
     /\ pl.state = "confirmed"
+    /\ ~pl.expired
     /\ ~Frozen
     /\ \/ actual' = actual
        \/ actual' = Apply(actual, pl.op, pl.copy)
@@ -184,6 +207,7 @@ Next ==
     \/ \E p \in Proposers, op \in Ops, c \in Copies : Submit(p, op, c)
     \/ \E pl \in plans :
           Confirm(pl) \/ CloseUnconfirmed(pl)
+          \/ DeadlinePasses(pl) \/ ExpiredNotPerformed(pl)
           \/ ExecuteSucceeded(pl) \/ ExecuteFailed(pl)
           \/ ExecuteUnknown(pl) \/ Reconcile(pl)
     \/ Finalize
@@ -243,6 +267,13 @@ ClosedUnconfirmedMeansNeverConfirmed ==
 ResultHasPriorAuthorization ==
     \A id \in 0..(nPlans - 1) : \A r \in ResultsOf(id) :
         \E i \in At("plan", id), j \in At("confirm", id) : i < j /\ j < r
+
+\* The key store starts an operation (a succeeded or unknown result, the
+\* only steps that can change a copy) only before the confirmation deadline.
+StartedOnlyBeforeDeadline ==
+    \A id \in 0..(nPlans - 1) :
+        \A r \in At("succeeded", id) \cup At("unknown", id) :
+            \A d \in At("deadline-passed", id) : r < d
 
 \* A reconciliation happens only after an unknown result for the same plan.
 ReconcileFollowsUnknown ==
