@@ -118,7 +118,13 @@ Permission to delete isn't proof of deletion, especially with backups. Each reco
 3. the oversight body then destroys its own copy of the inventory, and nothing else is kept. The destroyed key has no further inventory, receipt or audit, and the encrypted container can't be decrypted.
 
 **Changes to an inventory.** Over the retention period, copies of a key may be added, replaced, moved to a backup or retired. An inventory fixed only at creation would then stop matching the copies that actually exist. So:
-- every change to a key's copies is an **inventory event**. The oversight body is notified before it happens, and a commitment to the updated inventory is appended to the log, linked to the previous one. The inventory commitments form a chain from creation to destruction;
+- every change to a key's copies is an **inventory event**, and it is recorded **before** the operation, never after. Otherwise a system could create an unregistered copy and remove it again before anything was written down. The order is fixed:
+  1. the oversight body is notified of the planned operation;
+  2. a commitment to the updated inventory is appended to the log, linked to the previous one;
+  3. the log returns a signed inclusion receipt, and the oversight body confirms the event;
+  4. only then does the key store carry out the operation.
+
+  The key stores enforce this themselves: they refuse to create, copy, move or destroy a copy without a valid inclusion receipt and the oversight body's confirmation for that exact event. Whether that enforcement really holds is part of the key-store audit (the second row of the table in §4.3). If the log is unavailable, copy operations wait; existing copies keep working in the meantime. The inventory commitments form a chain from creation to destruction;
 - a copy that is retired early is destroyed under the oversight body's observation at that time, and the event records it;
 - the final statement covers the whole history: every copy that ever appeared in the chain, whether destroyed at retirement or at the end.
 
