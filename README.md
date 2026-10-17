@@ -146,7 +146,17 @@ Hash chains and public anchoring prove only that **already recorded** entries ha
 A deletion entry signed only by the register is just the register's own claim, so it doesn't prove that the period really ended. Two safeguards back it up:
 - **The deadline is fixed at creation.** When the record is first committed, its retention deadline (a date and the rule it comes from, which is non-personal metadata) goes into the public log with it. Anyone can then check that a routine deletion entry came no earlier than that deadline, without seeing the record.
 - **Independent countersignature before destruction.** Any deletion that doesn't follow the original deadline (an early erasure ordered by a court, a changed retention rule, a correction) must be checked and countersigned by an independent party, such as the data protection authority or an auditor, *before* the record and salt are destroyed. The deletion entry carries both signatures. A register can't destroy data early on its own authority.
-- **Proof that deletion actually happened.** Permission to delete isn't proof of deletion, especially with backups. Each record and its salt are stored encrypted under their own key, so destroying that key makes every copy unreadable, backups included (crypto-shredding). After deletion, an independent auditor checks samples from primary and backup systems and attests that the key, record and salt are gone. The attestation is appended to the log, linked to the deletion entry.
+- **Proof that deletion actually happened.** Permission to delete isn't proof of deletion, especially with backups. Each record and its salt are stored encrypted under their own key. Deletion means destroying that key (cryptographic erase, covered in [NIST SP 800-88 Rev. 2](https://csrc.nist.gov/pubs/sp/800/88/r2/final)). Encrypted copies may physically remain in storage and backups, but without the key, decrypting them becomes practically infeasible. The claim is "the key is destroyed and the copies can't be decrypted", not "the record and salt no longer exist anywhere".
+
+What is checked, and how:
+
+| What | Checked for | How |
+| --- | --- | --- |
+| The record's key was destroyed | **Every record** | Keys live only in a hardware key store and can't be exported. The key store issues a signed destruction receipt for each key, and it is appended to the log next to the deletion entry |
+| No other usable copy of the key exists | The key-management system as a whole | Audit of the key store's configuration and of its own backups. Backups of keys exist only inside equivalent hardware and are covered by the same destruction |
+| No plaintext copy of the record or salt exists outside the encrypted store | **A sample** of storage and backup systems | Independent auditors search sampled systems for plaintext copies. A sample gives reasonable assurance, not proof for every copy, and the report says so |
+
+Every deletion follows the same minimum: the register's signed deletion entry, the key store's destruction receipt and a later audit. The extra **prior** independent countersignature applies only to deletions outside the original deadline. A routine deletion doesn't need one, because anyone can check its date against the deadline committed when the record was created.
 
 A keyed hash (for example, an HMAC whose key stays with the register) is used, if at all, only as an internal index for lookups. It is never the public commitment, because an outside auditor couldn't check it without the key.
 
