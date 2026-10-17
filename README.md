@@ -142,3 +142,9 @@ The system of government stays the same; what changes is the infrastructure it r
 ---
 
 *A concept, not a finished proposal. Issues and pull requests are welcome, which seems fitting.*
+
+---
+
+*"When the government violates the rights of the people, insurrection is for the people and for each portion of the people the most sacred of rights and the most indispensable of duties."*
+
+Declaration of the Rights of Man and of the Citizen (1793), Article 35. The same words are on the Black Cone, Santiago Sierra's Monument to Civil Disobedience in front of Iceland's parliament in Reykjavík.
