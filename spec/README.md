@@ -11,7 +11,8 @@ The model separates **ground truth** (`actual`: which copies physically exist) f
 - plans to create or destroy a copy, confirmed by the oversight body before execution;
 - plans closed before confirmation (rejected by the oversight body, withdrawn by the proposer or expired), modelled as one action because all three close the plan without changing the inventory;
 - results *succeeded*, *failed* and *unknown*; an unknown result means a crash in which the physical change may or may not have happened;
-- the confirmation deadline, with time abstracted: after confirmation the deadline may pass at any moment before the key store starts. After that, the key store can only record *failed* (not performed);
+- the start of an operation as its own step, separate from its result, so an operation can be in flight;
+- the confirmation deadline, with time abstracted: after confirmation the deadline may pass at any moment. It blocks a start that hasn't happened yet, and the key store then records *not performed*. An operation that has already started may finish, and record its result, after the deadline;
 - reconciliation by the oversight body, which records the true inventory;
 - terminal destruction of every copy in the inventory.
 
@@ -28,8 +29,9 @@ The model separates **ground truth** (`actual`: which copies physically exist) f
 | `FinalizedMeansNoCopies` | After terminal destruction, no copy of the key exists anywhere |
 | `NoDuplicateEvents` | Each kind of event appears at most once per plan; a plan has at most one outcome (a result or closure before confirmation) |
 | `ClosedUnconfirmedMeansNeverConfirmed` | A plan closed before confirmation was never confirmed and has no key-store result |
-| `StartedOnlyBeforeDeadline` | A *succeeded* or *unknown* result, the only steps that can change a copy, is never recorded after the plan's confirmation deadline has passed |
-| `ResultHasPriorAuthorization` | Every result (*succeeded*, *failed*, *unknown*) comes after that plan's entry and then its confirmation |
+| `StartedOnlyBeforeDeadline` | The key store never starts an operation after the plan's confirmation deadline has passed. An operation started earlier may still finish later |
+| `NotPerformedOnlyAfterDeadline` | *Not performed* is recorded only when the deadline passed and the operation was never started |
+| `ResultHasPriorAuthorization` | Every result (*succeeded*, *failed*, *unknown*) comes after that plan's entry, its confirmation and the start of the operation, in that order |
 | `ReconcileFollowsUnknown` | A reconciliation happens only after an *unknown* result for the same plan |
 | `ClosedPlanHasOutcome` | A closed plan has a terminal outcome on record: *succeeded*, *failed*, closure before confirmation, or *unknown* followed by reconciliation, so recovery can tell a failed plan from a lost result |
 | `OpenPlanHasNoOutcome` | An open plan has no terminal outcome yet, and its *unknown* state matches the history |
@@ -50,11 +52,21 @@ java -cp tla2tools.jar tlc2.TLC -deadlock -workers auto -config KeyInventory.cfg
 
 ```
 Model checking completed. No error has been found.
-500698 states generated, 213775 distinct states found, 0 states left on queue.
-The depth of the complete state graph search is 23.
+5421160 states generated, 2367395 distinct states found, 0 states left on queue.
+The depth of the complete state graph search is 31.
 ```
 
-The event properties were also checked for vacuity: in a copy of the model where a *failed* result is not recorded, TLC reports `Invariant ClosedPlanHasOutcome is violated`; in a copy where the key store may succeed after the deadline, it reports `Invariant StartedOnlyBeforeDeadline is violated`.
+The event properties were also checked for vacuity: in a copy of the model where a *failed* result is not recorded, TLC reports `Invariant ClosedPlanHasOutcome is violated`; in a copy where the key store may start after the deadline, it reports `Invariant StartedOnlyBeforeDeadline is violated`.
+
+### Reachability check
+
+The safety properties only say that bad things don't happen. `KeyInventory_reach.cfg` checks that both legal deadline interleavings actually can happen. It lists two *witness* claims, each saying that a legal behaviour never occurs, so both are expected to fail:
+
+```sh
+java -cp tla2tools.jar tlc2.TLC -deadlock -continue -workers auto -config KeyInventory_reach.cfg KeyInventory.tla
+```
+
+**Expected result:** both `Error: Invariant NeverFinishesAfterDeadline is violated.` (an operation started before the deadline finishes after it) and `Error: Invariant NeverNotPerformed is violated.` (the deadline passes before the start, so the operation is not performed). With `-continue`, TLC prints many traces for each.
 
 ### Negative control
 
@@ -72,7 +84,7 @@ TLC checks **this model of the protocol**, exhaustively, within the bounds above
 
 - **that the hardware key store enforces the rules.** The model assumes a key store never acts without a confirmed plan. A key store that bypasses its own checks is outside the model; the spec relies on the key-store audit for that;
 - **anything about cryptography.** Signatures, commitments, salts and inclusion proofs are assumed to work. The model has no adversary that forges them;
-- **durability of the log itself.** An event appended to `events` or `log` stays there; the model doesn't simulate losing or rolling back log entries. Operation and recording of its result are one atomic step; a crash between them is modelled as an *unknown* result;
+- **durability of the log itself.** An event appended to `events` or `log` stays there; the model doesn't simulate losing or rolling back log entries. Starting an operation is a separate step, but finishing it and recording its result are one atomic step; a crash in flight is modelled as an *unknown* result;
 - **correctness beyond the bounds.** Results hold for 3 copies, 2 proposers and up to 4 plans. Larger values are likely to behave the same way, but this run doesn't prove it;
 - **liveness.** Only safety is checked: nothing bad happens. The model doesn't show that plans eventually finish or that reconciliation eventually happens;
 - **the rest of the spec.** Record deletion, audit cohorts and the oversight body's own honesty are not modelled.

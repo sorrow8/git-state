@@ -132,7 +132,7 @@ Permission to delete isn't proof of deletion, especially with backups. Each reco
   - the proposer may withdraw it before confirmation, appending a signed **withdrawal entry**;
   - an unconfirmed plan expires after a fixed deadline, and the oversight body appends an **expiry entry**.
 
-  Each of these closes the plan without changing the inventory, and none is possible once the plan has been confirmed. A confirmed plan is closed only by the key store's result. The confirmation carries its own deadline. If the key store hasn't started the operation by then, it doesn't start it, and records *failed* (not performed). Only then can the next plan be submitted, and it must start from the inventory that the closed plan produced. Two plans can therefore never be built on the same inventory, and the chain stays a single line.
+  Each of these closes the plan without changing the inventory, and none is possible once the plan has been confirmed. A confirmed plan is closed only by the key store's result. The confirmation carries its own deadline. If the key store hasn't started the operation by then, it doesn't start it, and records *failed* (not performed). The deadline limits only the start: an operation already in progress when the deadline passes is allowed to finish, and its result is recorded as usual. Only then can the next plan be submitted, and it must start from the inventory that the closed plan produced. Two plans can therefore never be built on the same inventory, and the chain stays a single line.
 
   A TLA+ model of this protocol, with the invariants it is checked against and its limits, is in [`spec/`](../spec/README.md).
 
