@@ -129,6 +129,8 @@ Permission to delete isn't proof of deletion, especially with backups. Each reco
 
   **One open plan per key.** A key may have at most one unfinished plan. Each plan names the inventory commitment it starts from, and the log accepts a plan entry only if that commitment is the current inventory and the key has no other open plan. The oversight body checks the same two conditions before confirming. A plan closes with a *succeeded* or *failed* result, or, after an *unknown* one, with the reconciliation entry. Only then can the next plan be submitted, and it must start from the inventory that the closed plan produced. Two plans can therefore never be built on the same inventory, and the chain stays a single line.
 
+  A TLA+ model of this protocol, with the invariants it is checked against and its limits, is in [`spec/`](../spec/README.md).
+
   The key stores enforce this themselves: they refuse to create, copy, move or destroy a copy without a valid inclusion receipt and the oversight body's confirmation for that exact event. Whether that enforcement really holds is part of the key-store audit (the second row of the table in §4.3). If the log is unavailable, copy operations wait; existing copies keep working in the meantime. The inventory commitments form a chain from creation to destruction;
 - a copy that is retired early is destroyed under the oversight body's observation at that time, and the event records it;
 - the final statement covers the whole history: every copy that ever appeared in the chain, whether destroyed at retirement or at the end.
