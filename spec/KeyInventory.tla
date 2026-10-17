@@ -145,7 +145,8 @@ DeadlinePasses(pl) ==
     /\ UNCHANGED <<actual, inv, log, view, doubt, nPlans, finalized>>
 
 (* The deadline passed before the start: the key store doesn't start and  *)
-(* records failed (not performed). Nothing physical changes.              *)
+(* appends a "not performed" entry. This is a separate kind of entry, not *)
+(* a result (results follow a start). Nothing physical changes.           *)
 ExpiredNotPerformed(pl) ==
     /\ pl \in plans
     /\ pl.state = "confirmed"
@@ -287,12 +288,14 @@ StartedOnlyBeforeDeadline ==
     \A id \in 0..(nPlans - 1) :
         \A k \in At("started", id) : \A d \in At("deadline-passed", id) : k < d
 
-\* "Not performed" is recorded only when the deadline passed and the
-\* operation was never started.
+\* "Not performed" is recorded only for a plan that was entered and
+\* confirmed, whose deadline then passed, and whose operation was never
+\* started: plan < confirm < deadline-passed < not-performed.
 NotPerformedOnlyAfterDeadline ==
     \A id \in 0..(nPlans - 1) : \A n \in At("not-performed", id) :
         /\ At("started", id) = {}
-        /\ \E d \in At("deadline-passed", id) : d < n
+        /\ \E i \in At("plan", id), j \in At("confirm", id), d \in At("deadline-passed", id) :
+               i < j /\ j < d /\ d < n
 
 \* A reconciliation happens only after an unknown result for the same plan.
 ReconcileFollowsUnknown ==
