@@ -38,12 +38,14 @@ VARIABLES
 vars == <<actual, inv, log, events, view, plans, doubt, nPlans, finalized>>
 
 Ops == {"create", "destroy"}
-PlanStates == {"pending", "confirmed", "unknown"}
-EventKinds == {"plan", "confirm", "closed-unconfirmed", "deadline-passed",
-               "succeeded", "failed", "unknown", "reconcile"}
+PlanStates == {"pending", "confirmed", "started", "unknown"}
+EventKinds == {"plan", "confirm", "closed-unconfirmed", "started", "deadline-passed",
+               "not-performed", "succeeded", "failed", "unknown", "reconcile"}
+\* Results of an operation the key store actually started.
 ResultKinds == {"succeeded", "failed", "unknown"}
-\* Ways a plan can end: a key-store result, or closure before confirmation.
-OutcomeKinds == ResultKinds \cup {"closed-unconfirmed"}
+\* Ways a plan can end: a result of a started operation, closure before
+\* confirmation, or "not performed" after the deadline passed before the start.
+OutcomeKinds == ResultKinds \cup {"closed-unconfirmed", "not-performed"}
 
 Event(k, id) == [kind |-> k, id |-> id]
 
@@ -119,33 +121,45 @@ CloseUnconfirmed(pl) ==
     /\ events' = Append(events, Event("closed-unconfirmed", pl.id))
     /\ UNCHANGED <<actual, inv, log, view, doubt, nPlans, finalized>>
 
-(* The confirmation deadline passes. Time is abstracted: this can happen  *)
-(* at any point after confirmation, before the key store has started.     *)
-DeadlinePasses(pl) ==
+(* Step 4a: the key store starts the operation. This is the only step   *)
+(* gated by the confirmation deadline.                                    *)
+Start(pl) ==
     /\ pl \in plans
     /\ pl.state = "confirmed"
+    /\ ~pl.expired
+    /\ ~Frozen
+    /\ plans' = (plans \ {pl}) \cup {[pl EXCEPT !.state = "started"]}
+    /\ events' = Append(events, Event("started", pl.id))
+    /\ UNCHANGED <<actual, inv, log, view, doubt, nPlans, finalized>>
+
+(* The confirmation deadline passes. Time is abstracted: this can happen  *)
+(* at any point after confirmation, whether or not the key store has      *)
+(* started. It stops a start that hasn't happened yet; it doesn't stop an *)
+(* operation already in flight.                                           *)
+DeadlinePasses(pl) ==
+    /\ pl \in plans
+    /\ pl.state \in {"confirmed", "started"}
     /\ ~pl.expired
     /\ plans' = (plans \ {pl}) \cup {[pl EXCEPT !.expired = TRUE]}
     /\ events' = Append(events, Event("deadline-passed", pl.id))
     /\ UNCHANGED <<actual, inv, log, view, doubt, nPlans, finalized>>
 
-(* After the deadline the key store does not start the operation and      *)
+(* The deadline passed before the start: the key store doesn't start and  *)
 (* records failed (not performed). Nothing physical changes.              *)
 ExpiredNotPerformed(pl) ==
     /\ pl \in plans
     /\ pl.state = "confirmed"
     /\ pl.expired
     /\ plans' = plans \ {pl}
-    /\ events' = Append(events, Event("failed", pl.id))
+    /\ events' = Append(events, Event("not-performed", pl.id))
     /\ UNCHANGED <<actual, inv, log, view, doubt, nPlans, finalized>>
 
-(* Steps 4-5: the key store acts only on a confirmed plan, then records   *)
-(* a signed result. The inventory changes only on success.                *)
+(* Steps 4b-5: a started operation finishes and the key store records a  *)
+(* signed result, even if the deadline has passed in the meantime. The    *)
+(* inventory changes only on success.                                     *)
 ExecuteSucceeded(pl) ==
     /\ pl \in plans
-    /\ pl.state = "confirmed"
-    /\ ~pl.expired
-    /\ ~Frozen
+    /\ pl.state = "started"
     /\ actual' = Apply(actual, pl.op, pl.copy)
     /\ inv' = pl.target
     /\ log' = Append(log, [base |-> pl.base, new |-> pl.target, kind |-> "succeeded"])
@@ -155,9 +169,7 @@ ExecuteSucceeded(pl) ==
 
 ExecuteFailed(pl) ==
     /\ pl \in plans
-    /\ pl.state = "confirmed"
-    /\ ~pl.expired
-    /\ ~Frozen
+    /\ pl.state = "started"
     /\ plans' = plans \ {pl}
     /\ events' = Append(events, Event("failed", pl.id))
     /\ UNCHANGED <<actual, inv, log, view, doubt, nPlans, finalized>>
@@ -166,9 +178,7 @@ ExecuteFailed(pl) ==
 (* happened. The copy is marked in doubt and the key is frozen.           *)
 ExecuteUnknown(pl) ==
     /\ pl \in plans
-    /\ pl.state = "confirmed"
-    /\ ~pl.expired
-    /\ ~Frozen
+    /\ pl.state = "started"
     /\ \/ actual' = actual
        \/ actual' = Apply(actual, pl.op, pl.copy)
     /\ plans' = (plans \ {pl}) \cup {[pl EXCEPT !.state = "unknown"]}
@@ -207,7 +217,7 @@ Next ==
     \/ \E p \in Proposers, op \in Ops, c \in Copies : Submit(p, op, c)
     \/ \E pl \in plans :
           Confirm(pl) \/ CloseUnconfirmed(pl)
-          \/ DeadlinePasses(pl) \/ ExpiredNotPerformed(pl)
+          \/ Start(pl) \/ DeadlinePasses(pl) \/ ExpiredNotPerformed(pl)
           \/ ExecuteSucceeded(pl) \/ ExecuteFailed(pl)
           \/ ExecuteUnknown(pl) \/ Reconcile(pl)
     \/ Finalize
@@ -256,24 +266,33 @@ NoDuplicateEvents ==
         /\ \A k \in EventKinds \ OutcomeKinds : Cardinality(At(k, id)) <= 1
         /\ Cardinality(OutcomesOf(id)) <= 1
 
-\* A plan closed before confirmation was never confirmed and has no key-store result.
+\* A plan closed before confirmation was never confirmed, started or finished.
 ClosedUnconfirmedMeansNeverConfirmed ==
     \A id \in 0..(nPlans - 1) :
         At("closed-unconfirmed", id) # {} =>
             /\ At("confirm", id) = {}
+            /\ At("started", id) = {}
             /\ ResultsOf(id) = {}
 
-\* Every result was preceded by the plan entry and then the oversight confirmation.
+\* Every result was preceded, in order, by the plan entry, the oversight
+\* confirmation and the start of the operation.
 ResultHasPriorAuthorization ==
     \A id \in 0..(nPlans - 1) : \A r \in ResultsOf(id) :
-        \E i \in At("plan", id), j \in At("confirm", id) : i < j /\ j < r
+        \E i \in At("plan", id), j \in At("confirm", id), k \in At("started", id) :
+            i < j /\ j < k /\ k < r
 
-\* The key store starts an operation (a succeeded or unknown result, the
-\* only steps that can change a copy) only before the confirmation deadline.
+\* The key store starts an operation only before the confirmation deadline.
+\* (An operation already started may finish after it.)
 StartedOnlyBeforeDeadline ==
     \A id \in 0..(nPlans - 1) :
-        \A r \in At("succeeded", id) \cup At("unknown", id) :
-            \A d \in At("deadline-passed", id) : r < d
+        \A k \in At("started", id) : \A d \in At("deadline-passed", id) : k < d
+
+\* "Not performed" is recorded only when the deadline passed and the
+\* operation was never started.
+NotPerformedOnlyAfterDeadline ==
+    \A id \in 0..(nPlans - 1) : \A n \in At("not-performed", id) :
+        /\ At("started", id) = {}
+        /\ \E d \in At("deadline-passed", id) : d < n
 
 \* A reconciliation happens only after an unknown result for the same plan.
 ReconcileFollowsUnknown ==
@@ -288,6 +307,7 @@ ClosedPlanHasOutcome ==
             \/ At("succeeded", id) # {}
             \/ At("failed", id) # {}
             \/ At("closed-unconfirmed", id) # {}
+            \/ At("not-performed", id) # {}
             \/ At("unknown", id) # {} /\ At("reconcile", id) # {}
 
 \* An open plan has no terminal outcome yet, so recovery can tell open from closed.
@@ -296,6 +316,7 @@ OpenPlanHasNoOutcome ==
         /\ At("succeeded", pl.id) = {}
         /\ At("failed", pl.id) = {}
         /\ At("closed-unconfirmed", pl.id) = {}
+        /\ At("not-performed", pl.id) = {}
         /\ At("reconcile", pl.id) = {}
         /\ (pl.state = "unknown") <=> (At("unknown", pl.id) # {})
 
@@ -317,5 +338,24 @@ PhysicalChangeOnlyWithRecordedResult ==
          \/ /\ Len(events') = Len(events) + 1
             /\ events'[Len(events')].kind \in {"succeeded", "unknown"}
          \/ ~finalized /\ finalized']_vars
+
+-----------------------------------------------------------------------------
+(* Reachability witnesses. These are NOT safety properties: each one      *)
+(* claims that something legal never happens, so TLC is expected to       *)
+(* report it as violated, with a trace showing that the behaviour is      *)
+(* possible. Checked by KeyInventory_reach.cfg.                           *)
+
+\* Claim: an operation never finishes after its deadline has passed.
+\* A violation shows that an operation started before the deadline can
+\* still finish and record its result afterwards.
+NeverFinishesAfterDeadline ==
+    \A id \in 0..(nPlans - 1) :
+        \A r \in ResultsOf(id) : \A d \in At("deadline-passed", id) : r < d
+
+\* Claim: "not performed" never happens.
+\* A violation shows that a deadline passing before the start prevents the
+\* operation.
+NeverNotPerformed ==
+    \A id \in 0..(nPlans - 1) : At("not-performed", id) = {}
 
 =============================================================================
