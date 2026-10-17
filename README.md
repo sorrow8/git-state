@@ -50,7 +50,7 @@ The analogy is a design aid, not a source of legitimacy. A merge is legitimate b
 ## Mechanisms
 
 ### 1. Atomic laws
-One bill, one subject. This is already the *single-subject rule* in the constitutions of [43 US states](https://statecourtreport.org/our-work/analysis-opinion/single-subject-rules-can-prevent-perverse-outcomes-give-judges-enormous). It rules out omnibus bills that hide unrelated provisions. The same source notes a real cost: the rule gives judges significant power to decide what counts as "one subject".
+One bill, one subject. This is already the *single-subject rule* in the constitutions of [43 US states](https://statecourtreport.org/our-work/analysis-opinion/single-subject-rules-can-prevent-perverse-outcomes-give-judges-enormous). The rule limits unrelated provisions, but it doesn't guarantee that omnibus bills disappear. How well it works depends on its wording and on how courts apply it. The same source notes the trade-off: the rule can prevent perverse outcomes, but it also gives judges wide discretion over what counts as "one subject".
 
 ### 2. Author vs. Committer
 Git keeps these as separate fields, and so should laws.
@@ -62,8 +62,9 @@ Text-similarity tools can show that a bill closely matches outside model languag
 
 ### 3. Review: human decisions, advisory AI
 AI reports are **public and advisory**. They never block a vote on their own.
-- **What AI reports cover:** a plain-language summary; the real diff against current law after resolving every cross-reference; provisions that seem unrelated to the bill's subject; conditions that appear to fit a single company; similarity to known model bills; possible conflicts with other laws. Bill text is treated as data, never as instructions (a defense against prompt injection).
-- **What can block:** only formal checks with objective criteria, such as a missing mandatory section (subject statement, budget estimate, drafting sources) or an unresolved cross-reference. A formal block names the rule it is based on, and a human official confirms it.
+- **What AI reports cover:** a plain-language summary; the real diff against current law after resolving every cross-reference; provisions that seem unrelated to the bill's subject; conditions that appear to fit a single company; similarity to known model bills; possible conflicts with other laws. Every significant claim must cite the exact provision it refers to, so a human can check it.
+- **AI has no powers.** Review models are read-only. They can't edit a law, vote, merge, publish or trigger any other action, and their output is only ever input for humans. Prompt injection, meaning text in a bill aimed at manipulating the model, is a real risk. Treating bill text as data *reduces* that risk but doesn't remove it, so the reviewers are regularly tested against adversarial examples, and their reports are never trusted without a human check.
+- **What can block:** only errors that can be formally defined in advance and checked mechanically. Examples: a missing mandatory section (subject statement, budget estimate, drafting sources), or a cross-reference to a provision or law that doesn't exist. A formal block names the rule it is based on, and a human official confirms it. A reference that exists but whose meaning is unclear is a question of interpretation. It goes to human review with a right of appeal and never becomes an automatic block.
 - **Substantive comments:** a human body (for example, the parliamentary clerk's office) triages them. The author must publish an answer to the comments selected as material before the vote, but answering doesn't mean agreeing. Triage decisions are reasoned, public and open to appeal.
 - **Abuse protection:** several independent reviewers can run (government, opposition, press). A comment counts only if a human adopts it, so a flood of automated comments can't stall a bill.
 
@@ -100,6 +101,8 @@ A law's real runtime is how it is applied, so the logs cover decisions made unde
 | Decisions about individuals | The decision, the legal basis, the responsible official and who accessed the data | The person concerned sees their own records; the public sees aggregate statistics; courts and auditors have access under law |
 | Restricted material (security, ongoing investigations, sensitive criteria) | The fact that an exception exists, its legal basis, who approved it and when it will be reviewed | The fact of the exception is public; the content goes to designated oversight bodies |
 
+**No secret law.** An unpublished annex can't create obligations for citizens and can't be the basis for sanctions against them. Operational details may be restricted, but the legal basis, people's rights and people's obligations are always public.
+
 Every exception needs a named legal basis, an approving authority, independent review and periodic public reporting. When an exception expires, its content is **reviewed for release**. It is released unless a fresh, reasoned assessment shows that disclosure would harm people or an investigation, and that assessment is itself recorded. An exception that keeps getting renewed should be visible as exactly that.
 
 ### Integrity and completeness: a threat model
@@ -109,12 +112,17 @@ Hash chains and public anchoring prove only that **already recorded** entries ha
 | Threat | Control |
 | --- | --- |
 | An entry is changed after recording | Append-only log; hashes anchored publicly and mirrored by independent parties |
-| An event is never recorded | **An unrecorded decision has no legal effect.** Recording is a condition of validity, so leaving a decision out of the log works against the official who made it. Per-register sequence numbers make gaps visible |
+| An event is never recorded | **A missing record counts against the state, never against the person.** An unrecorded decision that burdens someone is presumed irregular: the burden of proof is on the authority, and the person gets a fast route to challenge it. An unrecorded decision in someone's favor (a benefit, a permit, urgent help) still stands. Per-register sequence numbers make gaps visible |
+| The logging system fails | A defined emergency procedure: decisions are made and documented offline, urgent help is never delayed because the log is unavailable, and records are added within a fixed deadline with a note on the outage. Outages are reported publicly |
 | A false or wrong entry | Every entry is signed by a named official; independent monitors and auditors reconcile logs with other registers and with what affected people received |
 | An entry is substituted before recording | The affected party gets a signed receipt that must match the public log, the same idea as Certificate Transparency's signed timestamps |
 | Errors | Corrections are added as new linked entries; history is never rewritten |
 
-**Personal data never goes into a publicly replicated immutable log.** Only commitments (hashes) and non-personal metadata are public. The data itself stays in registers that have retention periods, so lawful deletion remains possible.
+**Personal data never goes into a publicly replicated immutable log.** The data itself stays in registers that have retention periods, so lawful deletion remains possible. A public hash can still leak data: a plain hash of an ID number, a date of birth or any value from a small set can be reversed by trying every possible input, and the same hash appearing in two logs links them. So the public layer follows these rules:
+- no plain hashes of identifiers or low-entropy values;
+- each record is committed with its own random salt (or a keyed hash whose key stays with the register), so a guess can't be checked and identical inputs don't produce identical outputs;
+- where possible, only aggregate commitments are published (for example, Merkle roots of batches), not per-record hashes;
+- the commitment scheme has its own written threat model (guessing, linking across logs, key compromise) and an independent review.
 
 ### Feedback and accountability
 - **Bug reports go to authors.** If the logs show that some wording produces inconsistent decisions, that becomes a public bug report against the law. Vagueness left in as a political compromise then shows up as a cost. Open standards such as "reasonable care" or "good faith" that are genuinely needed stay in.
@@ -129,7 +137,10 @@ Hash chains and public anchoring prove only that **already recorded** entries ha
 | Reviewer capture or error | A tweaked or mistaken AI misses something or invents something | AI is advisory only; several independent reviewers; human triage with appeal |
 | False authorship accusations | A similarity flag treated as proof | A flag only prompts a question; findings require a human process and an appeal |
 | Over-broad secrecy | "Temporarily restricted", and the money moves there | Exceptions recorded, independently reviewed, reported and reviewed for release |
-| Incomplete logs | Decisions made off the record | Unrecorded decisions have no legal effect; sequence numbers; reconciliation; receipts |
+| Incomplete logs | Decisions made off the record | Missing records count against the authority, never the person; sequence numbers; reconciliation; receipts |
+| Log outage | The logging system goes down | Emergency procedure: urgent help continues, records are added later within a deadline, outages are reported |
+| Leaks through hashes | Public hashes reversed or linked | Salted or keyed commitments, aggregate roots, a separate threat model |
+| Secret law | An unpublished annex used against citizens | Unpublished material can't create obligations or sanctions for citizens |
 | Off-log deals | Agreed in private, recorded as a "technical" change | Public rationale, legislative footprint, the waiting period to challenge |
 | Surveillance | Logs written about citizens instead of about power | Privacy by design: no personal data in public logs, access logging, retention limits |
 | Exclusion | Only technical people can read diffs | Plain-language summaries; non-digital access channels |
@@ -139,7 +150,7 @@ Infrastructure doesn't replace independent courts or a free press. Without them,
 
 ## Precedents
 
-Each piece of the model already exists somewhere, or has already failed somewhere. No country has combined them.
+Each piece of the model already exists somewhere, or has already failed somewhere. We are not aware of any country that combines them.
 
 | Precedent | What happened | Lesson for the model |
 | --- | --- | --- |
@@ -153,8 +164,8 @@ Each piece of the model already exists somewhere, or has already failed somewher
 | [The DAO (2016)](https://labs.withsecure.com/publications/the-hack-that-changed-the-blockchain-perspective) | A contract bug drained about 3.6M ETH. The community reversed it with a hard fork | "Code is law" gave way in a crisis; humans still decide |
 | [Beanstalk (2022)](https://bean.money/blog/beanstalk-governance-exploit) | A flash loan bought a governance supermajority. It passed a proposal through an emergency path with a 24-hour delay and drained the protocol (about $182M moved, about $76M net to the attacker) | A delay alone isn't enough. It has to be long enough for humans to react, voting power has to be fixed before a proposal and emergency paths are the weakest point |
 | [UK Post Office Horizon](https://www.irishnews.com/news/uk/the-post-office-scandal-what-is-it-and-has-anyone-been-held-accountable-VSJTQHLEC5NQXNVMYL2C5IDRNU/) | About 736 subpostmasters were convicted between 2000 and 2015 on evidence from faulty accounting software | Software output must never be presumed correct |
-| [Dutch childcare benefits scandal](https://en.wikipedia.org/wiki/Dutch_childcare_benefits_scandal) | Tens of thousands of families were wrongly treated as fraudsters, and the tax authority admitted singling out dual nationals. The cabinet resigned in January 2021 | Aggregate statistics on decisions could reveal discriminatory patterns early |
-| [Robodebt (Australia)](https://www.indailysa.com.au/news/archive/2023/07/07/robodebt-public-servants-face-prosecution-after-royal-commission-report) | A Royal Commission found the automated debt scheme unlawful and recommended referrals and a body to oversee automated decision-making | Automated decisions need a named accountable official and external oversight |
+| Dutch childcare benefits scandal ([parliamentary inquiry report "Ongekend onrecht", 2020](https://www.tweedekamer.nl/kamerstukken/plenaire_verslagen/kamer_in_het_kort/verslag-van-de-parlementaire); [cabinet response, Kamerstuk 35 510 nr. 4](https://www.officielebekendmakingen.nl/kst-35510-4.pdf)) | The inquiry found that parents were wrongly ordered to repay large sums and too often went unheard by the tax authority and the courts. The cabinet acknowledged violations of basic rule-of-law principles and resigned in January 2021. Targeting of dual nationals was part of the debate | Aggregate statistics on decisions, and a real hearing for affected people, could have exposed the pattern early |
+| Robodebt, Australia ([final report of the Royal Commission, 2023, government release](https://pm.gov.au/media/final-report-royal-commission-robodebt-scheme)) | The Royal Commission called the automated debt scheme "a crude and cruel mechanism, neither fair nor legal" and made 57 recommendations | Automated decisions need a named accountable official and external oversight |
 | [Hungary's constitutional changes (2011-2013)](https://www.venice.coe.int/Newsletter/NEWSLETTER_2013_03/1_HUN_EN.html) | The Venice Commission criticized limits on the Constitutional Court's review powers and the broad use of two-thirds "cardinal laws" | Whoever can change the protection rules can neutralize the checks |
 
 ## Scope and open questions
@@ -163,7 +174,7 @@ These are not solved yet, and each needs an answer before a real pilot:
 
 - **Which version is legally binding.** The signed text on `main`, an official gazette or both, and what happens if they differ.
 - **Identity.** How authors, committers and signing officials are authenticated (for example, qualified electronic signatures) and how a compromised key is revoked.
-- **Restricted annexes.** How classified parts of a law are referenced and reviewed without being published.
+- **Restricted annexes.** How restricted operational details are referenced and reviewed without being published. The principle is fixed (no secret law against citizens), but the mechanics aren't.
 - **Accessibility.** Plain-language versions, offline access and help for people without digital skills.
 - **Retention.** How long logs and underlying data are kept, and who may delete what and when.
 - **Who runs the infrastructure.** Hosting, mirroring and keys must not depend on one agency or one vendor.
@@ -179,6 +190,19 @@ Each step has a measurable result before the next one starts.
 4. **Advisory AI reports.** Public, non-binding reports for every bill, with human triage. *Result: measured accuracy, plus a record of which comments mattered.*
 5. **Decision logs.** For automated and high-impact decisions first, with a named official, a right to explanation and human review. *Result: people can see and contest decisions about themselves.*
 6. **Waiting periods, the emergency track and constitutional protection.** This needs constitutional reform. *Result: urgent laws expire automatically unless reviewed.*
+
+### Pilot criteria
+
+A "measurable result" counts only if the metric, who measures it, the threshold to move on and the condition to stop are all fixed **before** the pilot starts. The numbers below are placeholders that a real pilot must set and justify; they are not recommendations.
+
+| Step | Metric | Ground truth and who measures | Move on when | Stop or roll back when |
+| --- | --- | --- | --- | --- |
+| 1. Authoritative versions | Share of laws whose signed text matches the official gazette; time to fix a mismatch | An independent audit of a random sample against the gazette | Mismatches below an agreed rate, all fixed within the deadline | Any mismatch where the wrong version was applied to a person and wasn't caught |
+| 2. Completeness | Share of enacted acts and sampled decisions found in the logs | Auditors reconcile logs with registers, case files and receipts from affected people | Gaps below an agreed rate, each one explained | A systematic gap in one agency or one type of decision |
+| 3. Authorship disclosure | Share of bills where audits found undisclosed drafting sources | Random audits comparing disclosures with lobbying registers, meeting records and similarity scans, with a right of reply | Undisclosed sources rare, and each case resolved | Disclosure becomes boilerplate, or the audits can't get the records they need |
+| 4. Advisory AI reports | **Recall:** share of material issues the AI found. **Precision:** share of AI flags the experts consider material | A panel of independent legal experts reviews a sample of bills blind, without seeing the AI output. Their findings are the reference, and disagreements between experts are recorded | Recall and precision above preset thresholds on bills the model hasn't seen, and the adversarial tests pass | A missed material issue that the experts caught, a successful manipulation, or human reviewers starting to rubber-stamp AI output |
+| 5. Decision logs | Share of people who could see and contest a decision about themselves; time to resolve a challenge | Complaint statistics and a user survey, audited independently | Challenges resolved within the deadline, with no rise in errors against people | Any case where a log failure harmed someone, or urgent help was delayed |
+| 6. Waiting periods and the emergency track | Number of fast-track laws, renewals and court reversals | Court and parliamentary records | The fast track stays rare and every urgent law is reviewed on time | The fast track becomes routine |
 
 Small, high-trust digital states (Estonia, Iceland, Taiwan) and cities or regions, acting as "forks" at the level of local rules, are the most likely early adopters.
 
